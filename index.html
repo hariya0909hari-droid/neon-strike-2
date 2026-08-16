@@ -26,11 +26,13 @@ small{opacity:.75}
 <body>
 <canvas id="game"></canvas>
 <div id="hud">
- <div class="box">❤️ <span id="hp">100</span></div>
+ <div class="box">❤️ <span id="hp">100</span> 🛡️ <span id="armor">0</span></div>
  <div class="box">💰 <span id="coins">0</span></div>
  <div class="box">⭐ <span id="score">0</span></div>
  <div class="box">Lv <span id="level">1</span></div>
+ <div class="box">🏆 <span id="high">0</span></div>
 </div>
+<div id="mission" style="position:fixed;left:50%;transform:translateX(-50%);top:max(72px,calc(env(safe-area-inset-top) + 66px));background:#081027dd;border:1px solid #38538e;border-radius:11px;padding:5px 10px;font-size:12px;font-weight:900;pointer-events:none">MISSION</div>
 <div id="weapon">🔫 Pulse Blaster</div>
 <div id="bossHud" style="display:none;position:fixed;top:92px;left:10%;right:10%;height:18px;background:#1a1025;border:1px solid #a43b72;border-radius:12px;overflow:hidden;pointer-events:none"><div id="bossBar" style="height:100%;width:100%;background:#ff315d"></div></div>
 <button id="pause">Ⅱ</button>
@@ -44,11 +46,12 @@ small{opacity:.75}
 <button onclick="buyUpgrade('rate')">⚡ Fire Rate — <span id="rateCost">70</span> coins</button>
 <button onclick="buyUpgrade('hp')">❤️ Max Health +20 — <span id="hpCost">60</span> coins</button>
 <button onclick="buyUpgrade('speed')">🚀 Speed +30 — <span id="speedCost">80</span> coins</button>
+<button onclick="buyUpgrade('armor')">🛡️ Armor +12 — <span id="armorCost">90</span> coins</button>
 <button onclick="closeShop()">CLOSE</button>
 </div></div>
 <div id="menu"><div class="card" id="menuCard">
 <h1>NEON STRIKE 2</h1>
-<p><b>Boss + Coin Shop + Upgrades</b></p><p>💰 Saved Coins: <b id="menuCoins">0</b></p>
+<p><b>VERSION 4 — BOSS & MISSIONS</b></p><p>💰 Saved Coins: <b id="menuCoins">0</b></p>
 <div class="stat">🤖 <b>3 Enemy Types</b><br><small>Drone • Shooter • Tank</small></div>
 <div class="stat">🔫 <b>3 Weapons</b><br><small>Pulse • Twin Laser • Plasma Spread</small></div>
 <p><small>Joystick से move करें। FIRE दबाकर shoot करें। FIRE को लंबे समय दबाकर weapon बदलें।</small></p>
@@ -58,15 +61,15 @@ small{opacity:.75}
 const C=document.getElementById('game'),ctx=C.getContext('2d');
 let W,H,D,game=false,paused=false,last=0,score=0,coins=0,level=1,kills=0,spawnTimer=0;
 let shots=[],enemies=[],parts=[],enemyBullets=[],stars=[];
-let weapon=0,weaponTimer=null,boss=null,bossSpawnedLevel=0;
+let weapon=0,weaponTimer=null,boss=null,bossSpawnedLevel=0,missionTarget=12,missionStartKills=0,missionRewarded=false;
 const guns=[
  {name:'Pulse Blaster',rate:.18,dmg:2,speed:720,color:'#57efff'},
  {name:'Twin Laser',rate:.28,dmg:3,speed:820,color:'#a77bff'},
  {name:'Plasma Spread',rate:.48,dmg:5,speed:620,color:'#ff4d86'}
 ];
 const saved=JSON.parse(localStorage.getItem('neonStrike2Save')||'{}');
-let damageUp=Number(saved.damageUp||0), rateUp=Number(saved.rateUp||0), hpUp=Number(saved.hpUp||0), speedUp=Number(saved.speedUp||0);
-let maxHp=100+hpUp*20;
+let damageUp=Number(saved.damageUp||0), rateUp=Number(saved.rateUp||0), hpUp=Number(saved.hpUp||0), speedUp=Number(saved.speedUp||0), armorUp=Number(saved.armorUp||0), unlocked=Number(saved.unlocked||1), highScore=Number(saved.highScore||0);
+let maxHp=100+hpUp*20, armor=armorUp*12;
 const player={x:0,y:0,r:20,speed:315+speedUp*30,cool:0,inv:0,hp:maxHp};
 const stick={x:0,y:0,active:false};
 let fireDown=false;
@@ -103,8 +106,8 @@ document.getElementById('pause').onclick=()=>{if(game){paused=!paused;document.g
 
 function updateWeapon(){document.getElementById('weapon').textContent='🔫 '+guns[weapon].name}
 function start(){
- game=true;paused=false;score=0;coins=Number(saved.coins||0);level=1;kills=0;spawnTimer=0;
- shots=[];enemies=[];parts=[];enemyBullets=[];weapon=0;maxHp=100+hpUp*20;player.speed=315+speedUp*30;player.hp=maxHp;player.inv=0;player.x=W/2;player.y=H*.76;
+ game=true;paused=false;score=0;coins=Number(saved.coins||0);level=1;kills=0;spawnTimer=0;missionStartKills=0;missionTarget=12;missionRewarded=false;
+ shots=[];enemies=[];parts=[];enemyBullets=[];weapon=0;maxHp=100+hpUp*20;player.speed=315+speedUp*30;player.hp=maxHp;armor=armorUp*12;player.inv=0;player.x=W/2;player.y=H*.76;
  updateWeapon();document.getElementById('menu').style.display='none';
  last=performance.now();requestAnimationFrame(loop);
 }
@@ -114,11 +117,11 @@ function shoot(){
  const g=guns[weapon]; if(player.cool>0)return; player.cool=Math.max(.06,g.rate/(1+rateUp*.10));
  const add=(a)=>{
    shots.push({x:player.x,y:player.y-24,vx:Math.sin(a)*g.speed,vy:-Math.cos(a)*g.speed,
-   r:weapon===2?7:5,d:g.dmg+damageUp,c:g.color,life:2});
+   r:weapon===2?7:5,d:(g.dmg+damageUp)*(Math.random()<0.10?2:1),c:g.color,life:2});
  };
  if(weapon===0)add(0);
  if(weapon===1){add(-.075);add(.075)}
- if(weapon===2){add(-.12);add(-.06);add(0);add(.06);add(.12)}
+ if(weapon===2 && unlocked>=3){add(-.12);add(-.06);add(0);add(.06);add(.12)} else if(weapon===2){weapon=0;add(0);updateWeapon()}
  for(let i=0;i<7;i++)parts.push({x:player.x+(Math.random()-.5)*12,y:player.y-24,
  vx:(Math.random()-.5)*130,vy:-70-Math.random()*120,t:.22,c:g.color});
 }
@@ -141,9 +144,13 @@ function spawnEnemy(){
 
 function hitPlayer(d){
  if(player.inv>0)return;
- player.hp-=d;player.inv=.55;
+ const absorbed=Math.min(armor,d);
+ armor-=absorbed;
+ const real=Math.max(0,d-absorbed);
+ player.hp-=real;
+ player.inv=.55;
  for(let i=0;i<16;i++)parts.push({x:player.x,y:player.y,
- vx:(Math.random()-.5)*280,vy:(Math.random()-.5)*280,t:.35,c:'#ff315d'});
+ vx:(Math.random()-.5)*280,vy:(Math.random()-.5)*280,t:.35,c:armor>0?'#58b9ff':'#ff315d'});
  if(player.hp<=0)gameOver();
 }
 function explode(x,y,c){
@@ -174,7 +181,7 @@ function update(dt){
 
  if(level>=5 && level%5===0 && bossSpawnedLevel!==level && !boss){
   bossSpawnedLevel=level;
-  boss={x:W/2,y:-80,r:58,hp:180+level*30,max:180+level*30,v:35,shot:.7,phase:0};
+  boss={x:W/2,y:-80,r:58,hp:180+level*30,max:180+level*30,v:35,shot:.7,phase:0,shield:80+level*10};
 }
 if(boss){
   boss.y=Math.min(H*.23,boss.y+boss.v*dt);
@@ -217,7 +224,7 @@ for(const e of enemies){
   if(s.dead)continue;
   if(level>=5 && level%5===0 && bossSpawnedLevel!==level && !boss){
   bossSpawnedLevel=level;
-  boss={x:W/2,y:-80,r:58,hp:180+level*30,max:180+level*30,v:35,shot:.7,phase:0};
+  boss={x:W/2,y:-80,r:58,hp:180+level*30,max:180+level*30,v:35,shot:.7,phase:0,shield:80+level*10};
 }
 if(boss){
   boss.y=Math.min(H*.23,boss.y+boss.v*dt);
@@ -238,7 +245,7 @@ for(const e of enemies){
     if(e.hp<=0){
      e.dead=true;score+=e.score;coins+=e.coin;kills++;
      explode(e.x,e.y,e.c);
-     if(kills%12===0)level=Math.min(10,level+1);
+     if(kills%12===0){level=Math.min(10,level+1);if(level>=3)unlocked=3;missionStartKills=kills;missionTarget=12+level*3;missionRewarded=false;saveProgress();}
     }
     break;
    }
@@ -248,7 +255,7 @@ for(const e of enemies){
   for(const s of shots){
     if(s.dead)continue;
     if(Math.hypot(s.x-boss.x,s.y-boss.y)<s.r+boss.r){
-      s.dead=true;boss.hp-=s.d;explode(s.x,s.y,'#ff315d');
+      s.dead=true; const absorbed=Math.min(boss.shield,s.d); boss.shield-=absorbed; boss.hp-=Math.max(0,s.d-absorbed);explode(s.x,s.y,'#ff315d');
       if(boss.hp<=0){
         score+=1000;coins+=250;kills+=5;
         explode(boss.x,boss.y,'#ff315d');
@@ -268,7 +275,14 @@ shots=shots.filter(s=>!s.dead);
  document.getElementById('hp').textContent=Math.max(0,Math.round(player.hp));
  document.getElementById('coins').textContent=coins;
  document.getElementById('score').textContent=score;
- document.getElementById('level').textContent=level; saveProgress();
+ if(!missionRewarded && kills-missionStartKills>=missionTarget){
+ coins+=50+level*10; missionRewarded=true; explode(player.x,player.y,'#ffe45c');
+}
+document.getElementById('level').textContent=level;
+document.getElementById('high').textContent=Math.max(highScore,score);
+document.getElementById('armor').textContent=Math.max(0,Math.round(armor));
+document.getElementById('mission').textContent=missionRewarded?'MISSION COMPLETE + REWARD':'MISSION: '+Math.min(kills-missionStartKills,missionTarget)+' / '+missionTarget;
+saveProgress();
 }
 
 function draw(){
@@ -296,7 +310,7 @@ function draw(){
 
  if(level>=5 && level%5===0 && bossSpawnedLevel!==level && !boss){
   bossSpawnedLevel=level;
-  boss={x:W/2,y:-80,r:58,hp:180+level*30,max:180+level*30,v:35,shot:.7,phase:0};
+  boss={x:W/2,y:-80,r:58,hp:180+level*30,max:180+level*30,v:35,shot:.7,phase:0,shield:80+level*10};
 }
 if(boss){
   boss.y=Math.min(H*.23,boss.y+boss.v*dt);
@@ -331,9 +345,9 @@ for(const e of enemies){
  if(boss){
   ctx.save();ctx.translate(boss.x,boss.y);ctx.fillStyle='#ff315d';ctx.shadowBlur=35;ctx.shadowColor='#ff315d';
   ctx.beginPath();for(let i=0;i<12;i++){let a=i*Math.PI/6,r=i%2?boss.r*.72:boss.r;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath();ctx.fill();
-  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,14,0,7);ctx.fill();ctx.restore();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,14,0,7);ctx.fill(); if(boss.shield>0){ctx.strokeStyle='#58b9ff';ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,boss.r+7,0,7);ctx.stroke()} ctx.restore();
   document.getElementById('bossHud').style.display='block';
-  document.getElementById('bossBar').style.width=Math.max(0,boss.hp/boss.max*100)+'%';
+  document.getElementById('bossBar').style.width=Math.max(0,boss.hp/boss.max*100)+'%'; document.getElementById('bossHud').title='Boss Shield: '+Math.max(0,Math.round(boss.shield));
 }else document.getElementById('bossHud').style.display='none';
 
 ctx.save();ctx.translate(player.x,player.y);
@@ -352,17 +366,18 @@ ctx.save();ctx.translate(player.x,player.y);
 
 
 function saveProgress(){
- localStorage.setItem('neonStrike2Save',JSON.stringify({coins,damageUp,rateUp,hpUp,speedUp}));
+ highScore=Math.max(highScore,score);
+ localStorage.setItem('neonStrike2Save',JSON.stringify({coins,damageUp,rateUp,hpUp,speedUp,armorUp,unlocked,highScore}));
 }
 function cost(type){
- return ({damage:50,rate:70,hp:60,speed:80}[type] * (1+({damage:damageUp,rate:rateUp,hp:hpUp,speed:speedUp}[type])*0.6))|0;
+ return ({damage:50,rate:70,hp:60,speed:80,armor:90}[type] * (1+({damage:damageUp,rate:rateUp,hp:hpUp,speed:speedUp,armor:armorUp}[type])*0.6))|0;
 }
 function refreshShop(){
  document.getElementById('shopCoins').textContent=coins;
  document.getElementById('damageCost').textContent=cost('damage');
  document.getElementById('rateCost').textContent=cost('rate');
  document.getElementById('hpCost').textContent=cost('hp');
- document.getElementById('speedCost').textContent=cost('speed');
+ document.getElementById('speedCost').textContent=cost('speed'); document.getElementById('armorCost').textContent=cost('armor');
 }
 function buyUpgrade(type){
  const c=cost(type); if(coins<c)return;
