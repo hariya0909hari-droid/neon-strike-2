@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Neon Strike 2 - Enemy & Shooting Update</title>
+<title>Neon Surge 2 - Arcade Update</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:none}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02040b;color:#fff;font-family:system-ui,Arial}
@@ -22,6 +22,20 @@ button{width:100%;padding:14px;margin-top:10px;border:0;border-radius:13px;backg
 .stat{text-align:left;background:#0d1731;border-radius:12px;padding:10px;margin:8px 0}
 small{opacity:.75}
 </style>
+
+<style>
+#startupStatus{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
+z-index:20;background:#081027ee;border:1px solid #38538e;border-radius:12px;
+padding:7px 12px;font-size:12px;font-weight:800;display:none}
+#errorPanel{position:fixed;inset:0;z-index:99;display:none;align-items:center;
+justify-content:center;background:#02040bf5;padding:20px}
+#errorPanel .card{max-width:460px}
+</style>
+<div id="startupStatus">READY</div>
+<div id="errorPanel"><div class="card">
+<h1>START ERROR</h1><p id="errorText"></p>
+<button onclick="location.reload()">RELOAD</button>
+</div></div>
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -33,39 +47,39 @@ small{opacity:.75}
  <div class="box">🏆 <span id="high">0</span></div>
 </div>
 <div id="mission" style="position:fixed;left:50%;transform:translateX(-50%);top:max(72px,calc(env(safe-area-inset-top) + 66px));background:#081027dd;border:1px solid #38538e;border-radius:11px;padding:5px 10px;font-size:12px;font-weight:900;pointer-events:none">MISSION</div>
-<div id="weapon">🔫 Pulse Blaster</div>
+<div id="weapon">⚡ Pulse Beam</div>
 <div id="bossHud" style="display:none;position:fixed;top:92px;left:10%;right:10%;height:18px;background:#1a1025;border:1px solid #a43b72;border-radius:12px;overflow:hidden;pointer-events:none"><div id="bossBar" style="height:100%;width:100%;background:#ff315d"></div></div>
 <button id="pause">Ⅱ</button><button id="soundBtn" style="position:fixed;right:58px;top:max(48px,calc(env(safe-area-inset-top) + 42px));border:1px solid #46609c;background:#091126dd;color:#fff;border-radius:11px;padding:7px 10px;font-weight:900">🔊 ON</button>
 <button id="shopBtn" style="position:fixed;left:8px;top:max(48px,calc(env(safe-area-inset-top) + 42px));border:1px solid #46609c;background:#091126dd;color:#fff;border-radius:11px;padding:7px 10px;font-weight:900">SHOP</button>
 <div id="stick"><div id="knob"></div></div>
-<button id="fire">FIRE</button>
+<button id="fire">BOOST</button>
 <div id="shop" style="display:none;position:fixed;inset:0;background:#02040bea;align-items:center;justify-content:center;padding:18px;z-index:5">
 <div class="card">
 <h1>UPGRADE SHOP</h1><p>💰 Coins: <b id="shopCoins">0</b></p>
-<button onclick="buyUpgrade('damage')">🔫 Damage +1 — <span id="damageCost">50</span> coins</button>
-<button onclick="buyUpgrade('rate')">⚡ Fire Rate — <span id="rateCost">70</span> coins</button>
-<button onclick="buyUpgrade('hp')">❤️ Max Health +20 — <span id="hpCost">60</span> coins</button>
+<button onclick="buyUpgrade('damage')">🔫 Beam Power +1 — <span id="damageCost">50</span> coins</button>
+<button onclick="buyUpgrade('rate')">⚡ Boost Rate — <span id="rateCost">70</span> coins</button>
+<button onclick="buyUpgrade('hp')">❤️ Energy +20 — <span id="hpCost">60</span> coins</button>
 <button onclick="buyUpgrade('speed')">🚀 Speed +30 — <span id="speedCost">80</span> coins</button>
-<button onclick="buyUpgrade('armor')">🛡️ Armor +12 — <span id="armorCost">90</span> coins</button>
+<button onclick="buyUpgrade('armor')">🛡️ Shield +12 — <span id="armorCost">90</span> coins</button>
 <button onclick="closeShop()">CLOSE</button>
 </div></div>
 <div id="menu"><div class="card" id="menuCard">
-<h1>NEON STRIKE 2</h1>
-<p><b>VERSION 7 — FULL START FIX + SOUND</b></p><p>💰 Saved Coins: <b id="menuCoins">0</b></p>
-<div class="stat">🤖 <b>3 Enemy Types</b><br><small>Drone • Shooter • Tank</small></div>
-<div class="stat">🔫 <b>3 Weapons</b><br><small>Pulse • Twin Laser • Plasma Spread</small></div>
-<p><small>Joystick से move करें। FIRE दबाकर shoot करें। FIRE को लंबे समय दबाकर weapon बदलें।</small></p>
-<button id="play">START MISSION</button>
+<h1>NEON SURGE 2</h1>
+<p><b>VERSION 8 — COMPLETE ARCADE BUILD</b></p><p>💰 Saved Coins: <b id="menuCoins">0</b></p>
+<div class="stat">🤖 <b>3 Obstacle Types</b><br><small>Orb • Chaser • Block</small></div>
+<div class="stat">🔫 <b>3 Energy Modes</b><br><small>Pulse • Twin Beam • Plasma Burst</small></div>
+<p><small>Joystick से move करें। BOOST दबाकर shoot करें। BOOST को लंबे समय दबाकर weapon बदलें।</small></p>
+<button id="play">START RUN</button>
 </div></div>
 <script>
 const C=document.getElementById('game'),ctx=C.getContext('2d');
 let W,H,D,game=false,paused=false,last=0,score=0,coins=0,level=1,kills=0,spawnTimer=0;
-let shots=[],enemies=[],parts=[],enemyBullets=[],stars=[];
+let shots=[],enemies=[],parts=[],hazards=[],stars=[];
 let weapon=0,weaponTimer=null,boss=null,bossSpawnedLevel=0,missionTarget=12,missionStartKills=0,missionRewarded=false;
 const guns=[
- {name:'Pulse Blaster',rate:.18,dmg:2,speed:720,color:'#57efff'},
- {name:'Twin Laser',rate:.28,dmg:3,speed:820,color:'#a77bff'},
- {name:'Plasma Spread',rate:.48,dmg:5,speed:620,color:'#ff4d86'}
+ {name:'Pulse Beam',rate:.18,dmg:2,speed:720,color:'#57efff'},
+ {name:'Twin Beam',rate:.28,dmg:3,speed:820,color:'#a77bff'},
+ {name:'Plasma Burst',rate:.48,dmg:5,speed:620,color:'#ff4d86'}
 ];
 let saved={};
 try{saved=JSON.parse(localStorage.getItem('neonStrike2Save')||'{}')||{};}catch(e){saved={};try{localStorage.removeItem('neonStrike2Save')}catch(_){}}
@@ -91,17 +105,17 @@ function initAudio(){
   }catch(e){console.warn('Audio unavailable',e)}
 }
 function tone(f,d,type='square',v=.15,slide=0){
-  if(!soundEnabled)return; initAudio(); if(!audioCtx||!masterGain)return;
+  if(!soundEnabled)return; try{initAudio();}catch(_e){} if(!audioCtx||!masterGain)return;
   try{const n=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain();
     o.type=type;o.frequency.setValueAtTime(f,n);if(slide)o.frequency.linearRampToValueAtTime(Math.max(40,f+slide),n+d);
     g.gain.setValueAtTime(.0001,n);g.gain.exponentialRampToValueAtTime(v,n+.006);g.gain.exponentialRampToValueAtTime(.0001,n+d);
     o.connect(g);g.connect(masterGain);o.start(n);o.stop(n+d+.02);
   }catch(e){}
 }
-const SFX={shot:()=>tone(720,.05,'square',.12,-260),laser:()=>tone(1050,.06,'sawtooth',.1,-400),plasma:()=>tone(300,.1,'sawtooth',.14,500),hit:()=>tone(180,.04,'square',.08,-70),destroy:()=>tone(110,.13,'sawtooth',.12,-70),damage:()=>tone(90,.16,'square',.12,-30),mission:()=>{tone(660,.08,'sine',.1,180);setTimeout(()=>tone(880,.1,'sine',.1,150),80)},boss:()=>tone(90,.3,'sawtooth',.15,180),bossDead:()=>tone(400,.3,'sawtooth',.15,-280),buy:()=>tone(650,.08,'sine',.1,120),over:()=>tone(180,.25,'sawtooth',.12,-80)};
+const SFX={shot:()=>tone(720,.05,'square',.12,-260),laser:()=>tone(1050,.06,'sawtooth',.1,-400),plasma:()=>tone(300,.1,'sawtooth',.14,500),hit:()=>tone(180,.04,'square',.08,-70),collect:()=>tone(110,.13,'sawtooth',.12,-70),damage:()=>tone(90,.16,'square',.12,-30),mission:()=>{tone(660,.08,'sine',.1,180);setTimeout(()=>tone(880,.1,'sine',.1,150),80)},boss:()=>tone(90,.3,'sawtooth',.15,180),bossDead:()=>tone(400,.3,'sawtooth',.15,-280),buy:()=>tone(650,.08,'sine',.1,120),over:()=>tone(180,.25,'sawtooth',.12,-80)};
 const soundBtn=document.getElementById('soundBtn');
 soundBtn.textContent=soundEnabled?'🔊 ON':'🔇 OFF';
-soundBtn.onclick=e=>{e.preventDefault();e.stopPropagation();soundEnabled=!soundEnabled;try{localStorage.setItem('neonStrike2Sound',soundEnabled)}catch(e){}soundBtn.textContent=soundEnabled?'🔊 ON':'🔇 OFF';if(soundEnabled)initAudio();};
+soundBtn.onclick=e=>{e.preventDefault();e.stopPropagation();soundEnabled=!soundEnabled;try{localStorage.setItem('neonStrike2Sound',soundEnabled)}catch(e){}soundBtn.textContent=soundEnabled?'🔊 ON':'🔇 OFF';if(soundEnabled)try{initAudio();}catch(_e){}};
 
 
 function resize(){
@@ -127,7 +141,7 @@ function resetStick(){stick.active=false;stick.x=stick.y=0;knob.style.transform=
 
 const fireEl=document.getElementById('fire');
 fireEl.addEventListener('pointerdown',()=>{
- initAudio();
+ try{initAudio();}catch(_e){}
  fireDown=true;
  clearTimeout(weaponTimer);
  weaponTimer=setTimeout(()=>{weapon=(weapon+1)%guns.length;updateWeapon();fireDown=false;SFX.buy()},800);
@@ -137,9 +151,9 @@ document.getElementById('pause').onclick=()=>{if(game){paused=!paused;document.g
 
 function updateWeapon(){document.getElementById('weapon').textContent='🔫 '+guns[weapon].name}
 function start(){
- initAudio();
+ try{initAudio();}catch(_e){}
  game=true;paused=false;score=0;coins=Number(saved.coins||0);level=1;kills=0;spawnTimer=0;missionStartKills=0;missionTarget=12;missionRewarded=false;
- shots=[];enemies=[];parts=[];enemyBullets=[];boss=null;bossSpawnedLevel=0;weapon=0;maxHp=100+hpUp*20;player.speed=315+speedUp*30;player.hp=maxHp;armor=armorUp*12;player.inv=0;player.x=W/2;player.y=H*.76;
+ shots=[];enemies=[];parts=[];hazards=[];boss=null;bossSpawnedLevel=0;weapon=0;maxHp=100+hpUp*20;player.speed=315+speedUp*30;player.hp=maxHp;armor=armorUp*12;player.inv=0;player.x=W/2;player.y=H*.76;
  updateWeapon();document.getElementById('menu').style.display='none';
  last=performance.now();requestAnimationFrame(loop);
 }
@@ -161,13 +175,13 @@ function shoot(){
  vx:(Math.random()-.5)*130,vy:-70-Math.random()*120,t:.22,c:g.color});
 }
 
-function spawnEnemy(){
+function spawnObstacle(){
  const roll=Math.random();
- let type=roll<.12&&level>=4?'tank':roll<.32&&level>=2?'shooter':'drone';
+ let type=roll<.12&&level>=4?'block':roll<.32&&level>=2?'chaser':'orb';
  const info={
-  drone:{r:17,hp:3+level*.5,v:80+level*7,c:'#ff315d',score:10,coin:5},
-  shooter:{r:22,hp:5+level*.7,v:58+level*5,c:'#ff9b4a',score:20,coin:8},
-  tank:{r:31,hp:14+level*2,v:34+level*3,c:'#a83cff',score:45,coin:15}
+  orb:{r:17,hp:3+level*.5,v:80+level*7,c:'#ff315d',score:10,coin:5},
+  chaser:{r:22,hp:5+level*.7,v:58+level*5,c:'#ff9b4a',score:20,coin:8},
+  block:{r:31,hp:14+level*2,v:34+level*3,c:'#a83cff',score:45,coin:15}
  }[type];
  info.hp=Math.round(info.hp);
  enemies.push({
@@ -208,8 +222,8 @@ function update(dt){
  spawnTimer-=dt;
  if(spawnTimer<=0){
   spawnTimer=Math.max(.25,.85-level*.035);
-  spawnEnemy();
-  if(Math.random()<Math.min(.25,level*.015))spawnEnemy();
+  spawnObstacle();
+  if(Math.random()<Math.min(.25,level*.015))spawnObstacle();
  }
 
  for(const s of shots){s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=dt}
@@ -227,34 +241,34 @@ if(boss){
     boss.shot=Math.max(.28,.85-level*.018);
     for(let i=-2;i<=2;i++){
       const a=Math.atan2(player.y-boss.y,player.x-boss.x)+i*.16;
-      enemyBullets.push({x:boss.x,y:boss.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,r:7,d:12});
+      hazards.push({x:boss.x,y:boss.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,r:7,d:12});
     }
   }
 }
 for(const e of enemies){
   e.y+=e.v*dt;
-  if(e.type==='drone')e.x+=Math.sin(e.y*.012+e.phase)*.8;
-  if(e.type==='shooter'){
+  if(e.type==='orb')e.x+=Math.sin(e.y*.012+e.phase)*.8;
+  if(e.type==='chaser'){
    e.x+=Math.sin(e.y*.009+e.phase)*.5;e.shot-=dt;
    if(e.shot<=0){
     e.shot=Math.max(.75,1.35-level*.025);
     const a=Math.atan2(player.y-e.y,player.x-e.x);
-    enemyBullets.push({x:e.x,y:e.y,vx:Math.cos(a)*220,vy:Math.sin(a)*220,r:6,d:9});
+    hazards.push({x:e.x,y:e.y,vx:Math.cos(a)*220,vy:Math.sin(a)*220,r:6,d:9});
    }
   }
-  if(e.type==='tank')e.x+=Math.sin(e.y*.006+e.phase)*.3;
+  if(e.type==='block')e.x+=Math.sin(e.y*.006+e.phase)*.3;
   if(Math.hypot(e.x-player.x,e.y-player.y)<e.r+player.r){
-   e.dead=true;hitPlayer(e.type==='tank'?24:12);explode(e.x,e.y,e.c);
+   e.dead=true;hitPlayer(e.type==='block'?24:12);explode(e.x,e.y,e.c);
   }
  }
 
- for(const b of enemyBullets){
+ for(const b of hazards){
   b.x+=b.vx*dt;b.y+=b.vy*dt;
   if(Math.hypot(b.x-player.x,b.y-player.y)<b.r+player.r){
    b.dead=true;hitPlayer(b.d);explode(b.x,b.y,'#ff315d');
   }
  }
- enemyBullets=enemyBullets.filter(b=>!b.dead&&b.y>-40&&b.y<H+40&&b.x>-40&&b.x<W+40);
+ hazards=hazards.filter(b=>!b.dead&&b.y>-40&&b.y<H+40&&b.x>-40&&b.x<W+40);
 
  for(const s of shots){
   if(s.dead)continue;
@@ -270,7 +284,7 @@ if(boss){
     boss.shot=Math.max(.28,.85-level*.018);
     for(let i=-2;i<=2;i++){
       const a=Math.atan2(player.y-boss.y,player.x-boss.x)+i*.16;
-      enemyBullets.push({x:boss.x,y:boss.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,r:7,d:12});
+      hazards.push({x:boss.x,y:boss.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,r:7,d:12});
     }
   }
 }
@@ -279,7 +293,7 @@ for(const e of enemies){
    if(Math.hypot(s.x-e.x,s.y-e.y)<s.r+e.r){
     s.dead=true;e.hp-=s.d;SFX.hit();explode(s.x,s.y,e.c);
     if(e.hp<=0){
-     e.dead=true;score+=e.score;coins+=e.coin;kills++;SFX.destroy();
+     e.dead=true;score+=e.score;coins+=e.coin;kills++;SFX.collect();
      explode(e.x,e.y,e.c);
      if(kills%12===0){level=Math.min(10,level+1);if(level>=3)unlocked=3;missionStartKills=kills;missionTarget=12+level*3;missionRewarded=false;saveProgress();}
     }
@@ -334,7 +348,7 @@ function draw(){
  ctx.strokeStyle='rgba(70,120,210,.11)';
  for(let y=H*.45;y<H;y+=34){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
 
- for(const b of enemyBullets){
+ for(const b of hazards){
   ctx.fillStyle='#ff4d65';ctx.shadowBlur=16;ctx.shadowColor='#ff315d';
   ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();ctx.shadowBlur=0;
  }
@@ -356,7 +370,7 @@ if(boss){
     boss.shot=Math.max(.28,.85-level*.018);
     for(let i=-2;i<=2;i++){
       const a=Math.atan2(player.y-boss.y,player.x-boss.x)+i*.16;
-      enemyBullets.push({x:boss.x,y:boss.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,r:7,d:12});
+      hazards.push({x:boss.x,y:boss.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,r:7,d:12});
     }
   }
 }
@@ -364,14 +378,14 @@ for(const e of enemies){
   ctx.save();ctx.translate(e.x,e.y);
   ctx.fillStyle=e.c;ctx.shadowBlur=24;ctx.shadowColor=e.c;
   ctx.beginPath();
-  if(e.type==='tank'){
+  if(e.type==='block'){
    for(let i=0;i<8;i++){let a=i*Math.PI/4,r=i%2?e.r*.7:e.r;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r)}
   }else{
    ctx.moveTo(0,-e.r);ctx.lineTo(e.r,e.r*.65);ctx.lineTo(0,e.r*.2);ctx.lineTo(-e.r,e.r*.65);
   }
   ctx.closePath();ctx.fill();
-  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,e.type==='tank'?7:4,0,7);ctx.fill();
-  if(e.type==='shooter'){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,10,0,7);ctx.stroke()}
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,e.type==='block'?7:4,0,7);ctx.fill();
+  if(e.type==='chaser'){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,10,0,7);ctx.stroke()}
   ctx.restore();
 
   ctx.fillStyle='#171a2b';ctx.fillRect(e.x-e.r,e.y-e.r-9,e.r*2,4);
@@ -379,8 +393,4 @@ for(const e of enemies){
  }
 
  if(boss){
-  ctx.save();ctx.translate(boss.x,boss.y);ctx.fillStyle='#ff315d';ctx.shadowBlur=35;ctx.shadowColor='#ff315d';
-  ctx.beginPath();for(let i=0;i<12;i++){let a=i*Math.PI/6,r=i%2?boss.r*.72:boss.r;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath();ctx.fill();
-  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,14,0,7);ctx.fill(); if(boss.shield>0){ctx.strokeStyle='#58b9ff';ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,boss.r+7,0,7);ctx.stroke()} ctx.restore();
-  document.getElementById('bossHud').style.display='block';
-  document.getElementById('bossBar').style.width=Math.max(0,boss.hp/boss.max*100)+'%'; document.getElement
+  ctx.save();ctx.translate(boss.x,b
