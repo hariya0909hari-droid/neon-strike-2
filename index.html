@@ -51,7 +51,7 @@ small{opacity:.75}
 </div></div>
 <div id="menu"><div class="card" id="menuCard">
 <h1>NEON STRIKE 2</h1>
-<p><b>VERSION 6 — STABLE + SOUND</b></p><p>💰 Saved Coins: <b id="menuCoins">0</b></p>
+<p><b>VERSION 7 — FULL START FIX + SOUND</b></p><p>💰 Saved Coins: <b id="menuCoins">0</b></p>
 <div class="stat">🤖 <b>3 Enemy Types</b><br><small>Drone • Shooter • Tank</small></div>
 <div class="stat">🔫 <b>3 Weapons</b><br><small>Pulse • Twin Laser • Plasma Spread</small></div>
 <p><small>Joystick से move करें। FIRE दबाकर shoot करें। FIRE को लंबे समय दबाकर weapon बदलें।</small></p>
@@ -67,7 +67,8 @@ const guns=[
  {name:'Twin Laser',rate:.28,dmg:3,speed:820,color:'#a77bff'},
  {name:'Plasma Spread',rate:.48,dmg:5,speed:620,color:'#ff4d86'}
 ];
-const saved=JSON.parse(localStorage.getItem('neonStrike2Save')||'{}');
+let saved={};
+try{saved=JSON.parse(localStorage.getItem('neonStrike2Save')||'{}')||{};}catch(e){saved={};try{localStorage.removeItem('neonStrike2Save')}catch(_){}}
 let damageUp=Number(saved.damageUp||0), rateUp=Number(saved.rateUp||0), hpUp=Number(saved.hpUp||0), speedUp=Number(saved.speedUp||0), armorUp=Number(saved.armorUp||0), unlocked=Number(saved.unlocked||1), highScore=Number(saved.highScore||0);
 let maxHp=100+hpUp*20, armor=armorUp*12;
 const player={x:0,y:0,r:20,speed:315+speedUp*30,cool:0,inv:0,hp:maxHp};
@@ -75,7 +76,8 @@ const stick={x:0,y:0,active:false};
 let fireDown=false;
 
 let audioCtx=null, masterGain=null;
-let soundEnabled=localStorage.getItem('neonStrike2Sound')!=='false';
+let soundEnabled=true;
+try{soundEnabled=localStorage.getItem('neonStrike2Sound')!=='false'}catch(e){}
 function initAudio(){
   if(!soundEnabled)return;
   try{
@@ -99,7 +101,7 @@ function tone(f,d,type='square',v=.15,slide=0){
 const SFX={shot:()=>tone(720,.05,'square',.12,-260),laser:()=>tone(1050,.06,'sawtooth',.1,-400),plasma:()=>tone(300,.1,'sawtooth',.14,500),hit:()=>tone(180,.04,'square',.08,-70),destroy:()=>tone(110,.13,'sawtooth',.12,-70),damage:()=>tone(90,.16,'square',.12,-30),mission:()=>{tone(660,.08,'sine',.1,180);setTimeout(()=>tone(880,.1,'sine',.1,150),80)},boss:()=>tone(90,.3,'sawtooth',.15,180),bossDead:()=>tone(400,.3,'sawtooth',.15,-280),buy:()=>tone(650,.08,'sine',.1,120),over:()=>tone(180,.25,'sawtooth',.12,-80)};
 const soundBtn=document.getElementById('soundBtn');
 soundBtn.textContent=soundEnabled?'🔊 ON':'🔇 OFF';
-soundBtn.onclick=e=>{e.preventDefault();e.stopPropagation();soundEnabled=!soundEnabled;localStorage.setItem('neonStrike2Sound',soundEnabled);soundBtn.textContent=soundEnabled?'🔊 ON':'🔇 OFF';if(soundEnabled)initAudio();};
+soundBtn.onclick=e=>{e.preventDefault();e.stopPropagation();soundEnabled=!soundEnabled;try{localStorage.setItem('neonStrike2Sound',soundEnabled)}catch(e){}soundBtn.textContent=soundEnabled?'🔊 ON':'🔇 OFF';if(soundEnabled)initAudio();};
 
 
 function resize(){
@@ -141,7 +143,9 @@ function start(){
  updateWeapon();document.getElementById('menu').style.display='none';
  last=performance.now();requestAnimationFrame(loop);
 }
-document.getElementById('play').onclick=start; document.getElementById('menuCoins').textContent=Number(saved.coins||0);
+const playBtn=document.getElementById('play');
+playBtn.addEventListener('click',e=>{e.preventDefault();start()});
+playBtn.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse'){e.preventDefault();start()}}); document.getElementById('menuCoins').textContent=Number(saved.coins||0);
 
 function shoot(){
  const g=guns[weapon]; if(player.cool>0)return;
@@ -379,9 +383,4 @@ for(const e of enemies){
   ctx.beginPath();for(let i=0;i<12;i++){let a=i*Math.PI/6,r=i%2?boss.r*.72:boss.r;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath();ctx.fill();
   ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,14,0,7);ctx.fill(); if(boss.shield>0){ctx.strokeStyle='#58b9ff';ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,boss.r+7,0,7);ctx.stroke()} ctx.restore();
   document.getElementById('bossHud').style.display='block';
-  document.getElementById('bossBar').style.width=Math.max(0,boss.hp/boss.max*100)+'%'; document.getElementById('bossHud').title='Boss Shield: '+Math.max(0,Math.round(boss.shield));
-}else document.getElementById('bossHud').style.display='none';
-
-ctx.save();ctx.translate(player.x,player.y);
- if(player.inv>0&&Math.floor(player.inv*15)%2===0)ctx.globalAlpha=.35;
- ctx.fillStyle='#42e4f5';ctx.shadowBlur=28;ctx.shadowColor='
+  document.getElementById('bossBar').style.width=Math.max(0,boss.hp/boss.max*100)+'%'; document.getElement
