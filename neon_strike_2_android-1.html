@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Neon Strike 2</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#03050d;color:#fff;font-family:system-ui,Arial}
+canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;top:max(10px,env(safe-area-inset-top));left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;font-weight:800;font-size:14px;text-shadow:0 2px 5px #000}
+.box{background:#091126cc;border:1px solid #314b86;border-radius:12px;padding:7px 10px}
+#pause{position:fixed;right:10px;top:max(54px,calc(env(safe-area-inset-top) + 45px));border:1px solid #46609c;background:#091126dd;color:#fff;border-radius:12px;padding:9px 13px;font-weight:800}
+#controls{position:fixed;inset:0;pointer-events:none}
+#stick{position:absolute;left:24px;bottom:28px;width:126px;height:126px;border-radius:50%;background:#ffffff12;border:2px solid #ffffff28;pointer-events:auto}
+#knob{position:absolute;left:35px;top:35px;width:56px;height:56px;border-radius:50%;background:#47e8ff77;border:2px solid #8ef6ff}
+#fire{position:absolute;right:24px;bottom:34px;width:112px;height:112px;border-radius:50%;background:#ff315833;border:2px solid #ff6885;color:#fff;font-weight:900;font-size:18px;pointer-events:auto}
+#menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(#02050dcc,#05091de8);padding:22px}
+.card{width:min(430px,94vw);background:#081027f5;border:1px solid #3953a0;border-radius:24px;padding:24px;box-shadow:0 0 50px #142b70;text-align:center}
+h1{font-size:40px;margin:0 0 4px;background:linear-gradient(90deg,#55efff,#9f7bff,#ff4c8b);-webkit-background-clip:text;color:transparent}
+button{width:100%;padding:14px;margin-top:10px;border:0;border-radius:13px;background:#2e63ff;color:#fff;font-size:17px;font-weight:900}
+.secondary{background:#152343}
+#upgrade{display:none}
+.row{display:flex;gap:8px}.row button{flex:1}
+.stat{text-align:left;background:#0d1731;border-radius:12px;padding:10px;margin:8px 0}
+small{opacity:.75}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+ <div class="box">❤️ <span id="hp">100</span> | ⚡ <span id="energy">100</span></div>
+ <div class="box">💰 <span id="coins">0</span></div>
+ <div class="box">Lv <span id="level">1</span> · Score <span id="score">0</span></div>
+</div>
+<button id="pause">Ⅱ</button>
+<div id="controls"><div id="stick"><div id="knob"></div></div><button id="fire">FIRE</button></div>
+<div id="menu"><div class="card" id="menuCard">
+ <h1>NEON STRIKE 2</h1><p>Cyber Hunter</p>
+ <div class="stat">🔫 <b id="weaponName">Pulse Blaster</b><br><small>Switch guns and upgrade your hunter.</small></div>
+ <div class="stat">🎯 10 levels · 👹 boss every 3 levels · 💰 coins & upgrades</div>
+ <button id="play">START MISSION</button>
+ <button class="secondary" id="shop">UPGRADES</button>
+</div></div>
+
+<script>
+const C=document.getElementById('game'),ctx=C.getContext('2d');
+let W,H,D,game=false,paused=false,last=0,score=0,coins=0,level=1,hp=100,energy=100,waveKills=0;
+let shots=[],enemies=[],parts=[],stars=[],bulletsEnemy=[],boss=null,spawnTimer=0,levelTimer=0;
+let weapon=0, damageUp=0, speedUp=0, hpUp=0;
+const guns=[
+ {name:'Pulse Blaster',rate:.18,dmg:1,speed:720,color:'#57efff',cost:0},
+ {name:'Twin Laser',rate:.25,dmg:2,speed:820,color:'#a77bff',cost:80},
+ {name:'Plasma Cannon',rate:.48,dmg:5,speed:620,color:'#ff4d86',cost:180}
+];
+const player={x:0,y:0,r:20,speed:310,cool:0,inv:0};
+const stick={x:0,y:0,active:false},fire={down:false};
+
+function resize(){D=devicePixelRatio||1;W=innerWidth;H=innerHeight;C.width=W*D;C.height=H*D;ctx.setTransform(D,0,0,D,0,0);if(!player.x){player.x=W/2;player.y=H*.78}}
+addEventListener('resize',resize);resize();
+for(let i=0;i<100;i++)stars.push({x:Math.random(),y:Math.random(),z:.2+Math.random()*.8});
+
+function pointerPos(e){return {x:e.clientX,y:e.clientY}}
+document.getElementById('stick').addEventListener('pointerdown',e=>{stick.active=true;document.getElementById('stick').setPointerCapture(e.pointerId);moveStick(e)});
+document.getElementById('stick').addEventListener('pointermove',e=>{if(stick.active)moveStick(e)});
+document.getElementById('stick').addEventListener('pointerup',resetStick);
+document.getElementById('stick').addEventListener('pointercancel',resetStick);
+function moveStick(e){let r=document.getElementById('stick').getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,dx=e.clientX-cx,dy=e.clientY-cy,l=Math.hypot(dx,dy),m=43;if(l>m){dx=dx/l*m;dy=dy/l*m}stick.x=dx/m;stick.y=dy/m;document.getElementById('knob').style.transform=`translate(${dx}px,${dy}px)`}
+function resetStick(){stick.active=false;stick.x=stick.y=0;document.getElementById('knob').style.transform='translate(0,0)'}
+document.getElementById('fire').addEventListener('pointerdown',()=>fire.down=true);
+addEventListener('pointerup',()=>fire.down=false);
+document.getElementById('pause').onclick=()=>{if(game){paused=!paused;document.getElementById('pause').textContent=paused?'▶':'Ⅱ'}};
+
+function start(){game=true;paused=false;score=0;coins=0;level=1;hp=100;energy=100;waveKills=0;damageUp=0;speedUp=0;hpUp=0;weapon=0;shots=[];enemies=[];parts=[];bulletsEnemy=[];boss=null;player.x=W/2;player.y=H*.78;document.getElementById('menu').style.display='none';last=performance.now();requestAnimationFrame(loop)}
+document.getElementById('play').onclick=start;
+document.getElementById('shop').onclick=shop;
+function shop(){
+ document.getElementById('menuCard').innerHTML=`<h1>UPGRADES</h1>
+ <div class="stat">💰 Coins: <b>${coins}</b></div>
+ <button onclick="buy('damage')">⚔️ Damage +1 — 40 coins</button>
+ <button onclick="buy('speed')">🏃 Move Speed +35 — 50 coins</button>
+ <button onclick="buy('hp')">❤️ Max Health +20 — 60 coins</button>
+ <button class="secondary" onclick="location.reload()">BACK</button>`;
+}
+function buy(t){
+ let cost=t==='damage'?40:t==='speed'?50:60;
+ if(coins<cost)return;
+ coins-=cost;if(t==='damage')damageUp++;if(t==='speed')speedUp++;if(t==='hp'){hpUp++;hp=Math.min(100+hpUp*20,hp+20)}
+ shop();
+}
+function shoot(){
+ let g=guns[weapon];if(player.cool>0)return;
+ player.cool=g.rate;
+ let extra=weapon===1?[-.08,.08]:[0];
+ extra.forEach(a=>shots.push({x:player.x,y:player.y-24,vx:Math.sin(a)*g.speed,vy:-Math.cos(a)*g.speed,r:5,d:g.dmg+damageUp,c:g.color}));
+ if(weapon===2)for(let i=0;i<8;i++)parts.push({x:player.x,y:player.y-25,vx:(Math.random()-.5)*120,vy:-Math.random()*120,t:.25,c:g.color});
+}
+function spawnEnemy(){
+ let type=Math.random()<.18?'shooter':'drone',r=type==='shooter'?23:17;
+ enemies.push({x:r+Math.random()*(W-r*2),y:-r,r,hp:2+Math.floor(level*.55),max:2+Math.floor(level*.55),v:70+level*8+Math.random()*45,type,phase:Math.random()*9,shot:.8+Math.random()*1.5});
+}
+function spawnBoss(){
+ boss={x:W/2,y:-90,r:58,hp:160+level*35,max:160+level*35,v:42,shot:1};
+ for(let i=0;i<18;i++)parts.push({x:boss.x+(Math.random()-.5)*80,y:boss.y,vx:(Math.random()-.5)*100,vy:Math.random()*100,t:.4,c:'#ff315d'});
+}
+function hitPlayer(d){
+ if(player.inv>0)return;hp-=d;player.inv=.65;for(let i=0;i<14;i++)parts.push({x:player.x,y:player.y,vx:(Math.random()-.5)*250,vy:(Math.random()-.5)*250,t:.35,c:'#ff315d'});
+}
+function explode(x,y,col='#ffd45a'){
+ for(let i=0;i<20;i++)parts.push({x,y,vx:(Math.random()-.5)*360,vy:(Math.random()-.5)*360,t:.55,c:col});
+}
+function update(dt){
+ if(paused)return;
+ player.inv=Math.max(0,player.inv-dt);player.cool=Math.max(0,player.cool-dt);energy=Math.min(100,energy+dt*4);
+ let dx=stick.x,dy=stick.y;
+ if(dx||dy){let l=Math.hypot(dx,dy);player.x+=dx/l*(player.speed+speedUp*35)*dt;player.y+=dy/l*(player.speed+speedUp*35)*dt}
+ player.x=Math.max(25,Math.min(W-25,player.x));player.y=Math.max(65,Math.min(H-25,player.y));
+ if(fire.down)shoot();
+ spawnTimer-=dt;if(!boss&&spawnTimer<=0){spawnTimer=Math.max(.22,.85-level*.035);spawnEnemy()}
+ for(let s of shots){s.x+=s.vx*dt;s.y+=s.vy*dt}
+ shots=shots.filter(s=>s.y>-50&&s.x>-50&&s.x<W+50);
+ for(let e of enemies){
+   e.y+=e.v*dt;e.x+=Math.sin(e.y*.012+e.phase)*.55;e.shot-=dt;
+   if(e.type==='shooter'&&e.shot<=0){e.shot=1.4;bulletsEnemy.push({x:e.x,y:e.y,vx:(player.x-e.x)*.16,vy:220})}
+   if(Math.hypot(e.x-player.x,e.y-player.y)<e.r+player.r){e.dead=1;hitPlayer(12);explode(e.x,e.y,'#ff315d')}
+ }
+ for(let b of bulletsEnemy){b.x+=b.vx*dt;b.y+=b.vy*dt;if(Math.hypot(b.x-player.x,b.y-player.y)<8+player.r){b.dead=1;hitPlayer(8)}}
+ bulletsEnemy=bulletsEnemy.filter(b=>!b.dead&&b.y<H+30);
+ for(let s of shots){
+   for(let e of enemies)if(!e.dead&&!s.dead&&Math.hypot(s.x-e.x,s.y-e.y)<s.r+e.r){s.dead=1;e.hp-=s.d;if(e.hp<=0){e.dead=1;score+=10;coins+=5;waveKills++;explode(e.x,e.y,e.type==='shooter'?'#ff9b4a':'#57efff')}}
+   if(boss&&!s.dead&&Math.hypot(s.x-boss.x,s.y-boss.y)<s.r+boss.r){s.dead=1;boss.hp-=s.d;explode(s.x,s.y,'#ff4d86');if(boss.hp<=0){score+=500;coins+=100;explode(boss.x,boss.y,'#ff315d');boss=null;level++;waveKills=0}}
+ }
+ shots=shots.filter(s=>!s.dead);
+ enemies=enemies.filter(e=>!e.dead&&e.y<H+60);
+ if(!boss&&level%3===0&&waveKills>=Math.max(8,level*2))spawnBoss();
+ if(!boss&&waveKills>=Math.max(10,level*3)){level++;waveKills=0;coins+=25}
+ if(level>10){victory();return}
+ if(boss){boss.y=Math.min(120,boss.y+boss.v*dt);boss.x=W/2+Math.sin(performance.now()*.0012)*W*.28;boss.shot-=dt;if(boss.shot<=0){boss.shot=.8;for(let a=-.8;a<=.8;a+=.4)bulletsEnemy.push({x:boss.x,y:boss.y,vx:Math.sin(a)*240,vy:Math.cos(a)*240})}if(Math.hypot(boss.x-player.x,boss.y-player.y)<boss.r+player.r)hitPlayer(25)}
+ for(let p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=250*dt;p.t-=dt}parts=parts.filter(p=>p.t>0);
+ document.getElementById('hp').textContent=Math.max(0,Math.round(hp));document.getElementById('energy').textContent=Math.round(energy);document.getElementById('coins').textContent=coins;document.getElementById('score').textContent=score;document.getElementById('level').textContent=level;document.getElementById('weaponName').textContent=guns[weapon].name;
+ if(hp<=0)gameOver();
+}
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ let grad=ctx.createLinearGradient(0,0,0,H);grad.addColorStop(0,'#05091c');grad.addColorStop(1,'#12051c');ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+ for(let s of stars){let sy=(s.y+performance.now()*.00004*s.z)%1;ctx.fillStyle=`rgba(130,210,255,${.25+s.z*.5})`;ctx.fillRect(s.x*W,sy*H,1+s.z,1+s.z)}
+ // futuristic grid
+ ctx.strokeStyle='rgba(50,100,180,.12)';ctx.lineWidth=1;
+ for(let y=H*.45;y<H;y+=35){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+ // enemy bullets
+ for(let b of bulletsEnemy){ctx.fillStyle='#ff4d65';ctx.shadowBlur=12;ctx.shadowColor='#ff315d';ctx.beginPath();ctx.arc(b.x,b.y,5,0,7);ctx.fill();ctx.shadowBlur=0}
+ // shots
+ for(let s of shots){ctx.strokeStyle=s.c;ctx.lineWidth=5;ctx.shadowBlur=15;ctx.shadowColor=s.c;ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-s.vx*.025,s.y-s.vy*.025);ctx.stroke();ctx.shadowBlur=0}
+ // enemies
+ for(let e of enemies){ctx.save();ctx.translate(e.x,e.y);ctx.rotate(Math.sin(e.y*.01)*.2);ctx.fillStyle=e.type==='shooter'?'#ff9b4a':'#ff315d';ctx.shadowBlur=20;ctx.shadowColor=ctx.fillStyle;ctx.beginPath();ctx.moveTo(0,-e.r);ctx.lineTo(e.r,e.r*.65);ctx.lineTo(0,e.r*.2);ctx.lineTo(-e.r,e.r*.65);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,4,0,7);ctx.fill();ctx.restore();
+   ctx.fillStyle='#171b2e';ctx.fillRect(e.x-e.r,e.y-e.r-9,e.r*2,4);ctx.fillStyle='#ff315d';ctx.fillRect(e.x-e.r,e.y-e.r-9,e.r*2*(e.hp/e.max),4)}
+ if(boss){ctx.save();ctx.translate(boss.x,boss.y);ctx.fillStyle='#9b35ff';ctx.shadowBlur=35;ctx.shadowColor='#ff315d';ctx.beginPath();for(let i=0;i<12;i++){let a=i*Math.PI/6,r=i%2?boss.r*.65:boss.r;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath();ctx.fill();ctx.fillStyle='#ff315d';ctx.beginPath();ctx.arc(0,0,20,0,7);ctx.fill();ctx.restore();ctx.fillStyle='#21182b';ctx.fillRect(W*.15,155,W*.7,10);ctx.fillStyle='#ff315d';ctx.fillRect(W*.15,155,W*.7*(boss.hp/boss.max),10)}
+ // player
+ ctx.save();ctx.translate(player.x,player.y);if(player.inv>0&&Math.floor(player.inv*12)%2===0)ctx.globalAlpha=.35;
+ ctx.shadowBlur=25;ctx.shadowColor='#47e8ff';ctx.fillStyle='#42dff5';ctx.beginPath();ctx.moveTo(0,-29);ctx.lineTo(22,20);ctx.lineTo(7,13);ctx.lineTo(0,27);ctx.lineTo(-7,13);ctx.lineTo(-22,20);ctx.closePath();ctx.fill();ctx.fillStyle='#f2ffff';ctx.beginPath();ctx.arc(0,-7,7,0,7);ctx.fill();ctx.fillStyle='#172a4a';ctx.fillRect(-4,-10,8,5);ctx.restore();
+ for(let p of parts){ctx.globalAlpha=Math.max(0,p.t*2);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,3+p.t*3,0,7);ctx.fill()}ctx.globalAlpha=1;
+}
+function loop(t){if(!game)return;let dt=Math.min(.033,(t-last)/1000);last=t;update(dt);draw();requestAnimationFrame(loop)}
+function gameOver(){game=false;document.getElementById('menu').style.display='flex';document.getElementById('menuCard').innerHTML=`<h1>MISSION FAILED</h1><p>Score ${score} · Level ${level} · Coins ${coins}</p><button onclick="location.reload()">TRY AGAIN</button>`}
+function victory(){game=false;document.getElementById('menu').style.display='flex';document.getElementById('menuCard').innerHTML=`<h1>VICTORY!</h1><p>You cleared all 10 levels.</p><p>🏆 Score ${score} · 💰 Coins ${coins}</p><button onclick="location.reload()">PLAY AGAIN</button>`}
+// Long press FIRE cycles weapon; tap/normal press fires.
+let fireTimer;
+document.getElementById('fire').addEventListener('pointerdown',e=>{fire.down=true;fireTimer=setTimeout(()=>{weapon=(weapon+1)%guns.length;document.getElementById('weaponName').textContent=guns[weapon].name;fire.down=false},900)});
+addEventListener('pointerup',()=>clearTimeout(fireTimer));
+</script>
+</body>
+</html>
